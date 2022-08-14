@@ -2,6 +2,6 @@ winpty docker run -it \
     -e POSTGRES_USER="root" \
     -e POSTGRES_PASSWORD="root" \
     -e POSTGRES_DB="ny_taxi" \
-    -v $(pwd)/ny_taxi_postgres_data/:/var/lib/postgresql/data \
+    -v /c:/Users/aaksh/OneDrive/Desktop/data_engineering/nyc_taxi_analysis/2_docker_sql/ny_taxi_postgres_data:/var/lib/postgresql/data \
     -p 5432:5432 \
-    postgres:13 
+    postgres:13
