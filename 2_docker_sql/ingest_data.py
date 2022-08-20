@@ -23,7 +23,7 @@ def main(params):
     df = pd.read_parquet("output.parquet",
                          engine='fastparquet')
 
-    df.head(10).to_sql(name=table_name, con=engine, if_exists='replace')
+    df.to_sql(name=table_name, con=engine, if_exists='replace')
 
 
 if __name__ == '__main__':
