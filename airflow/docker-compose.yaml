@@ -66,6 +66,12 @@ x-airflow-common:
   # Credentials of my gcp project
     GCP_PROJECT_ID: 'geometric-rex-360223'
     GCP_GCS_BUCKET: 'dtc_data_lake_geometric-rex-360223'
+  # Credentials of Postgres
+    PG_HOST: "${PG_HOST}"
+    PG_USER: "${PG_USER}"
+    PG_PORT: "${PG_PORT}"
+    PG_PASSWORD: "${PG_PASSWORD}"
+    PG_DATABASE: "${PG_DATABASE}"
   volumes:
     - ./dags:/opt/airflow/dags
     - ./logs:/opt/airflow/logs
