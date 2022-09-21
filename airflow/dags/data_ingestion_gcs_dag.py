@@ -1,5 +1,7 @@
+from datetime import datetime
 import os
 import logging
+from tracemalloc import start
 
 from airflow import DAG
 from airflow.utils.dates import days_ago
@@ -14,12 +16,11 @@ import pyarrow.parquet as pq
 PROJECT_ID = os.environ.get("GCP_PROJECT_ID")
 BUCKET = os.environ.get("GCP_GCS_BUCKET")
 
-dataset_file = "yellow_tripdata_2022-01.parquet"
+dataset_file = "yellow_tripdata_{{ execution_date.strftime('%Y-%m') }}.parquet"
 dataset_url = f"https://d37ci6vzurychx.cloudfront.net/trip-data/{dataset_file}"
 path_to_local_home = os.environ.get("AIRFLOW_HOME", "/opt/airflow/")
-# parquet_file = dataset_file.replace('.csv', '.parquet')
 BIGQUERY_DATASET = os.environ.get("BIGQUERY_DATASET", 'trips_data_all')
-
+GCP_BUCKET_PATH = "raw/yellow_taxis/{{ execution_date.strftime('%Y') }}/yellow_tripdata_{{ execution_date.strftime('%Y-%m') }}"
 
 # def format_to_parquet(src_file):
 #     if not src_file.endswith('.csv'):
@@ -61,9 +62,10 @@ default_args = {
 # NOTE: DAG declaration - using a Context Manager (an implicit way)
 with DAG(
     dag_id="data_ingestion_gcs_dag",
-    schedule_interval="@daily",
+    schedule_interval="0 6 2 * *",
+    start_date=datetime(2021, 1, 1),
     default_args=default_args,
-    catchup=False,
+    catchup=True,
     max_active_runs=1,
     tags=['dtc-de'],
 ) as dag:
@@ -73,38 +75,35 @@ with DAG(
         bash_command=f"curl -sSL {dataset_url} > {path_to_local_home}/{dataset_file}"
     )
 
-    # format_to_parquet_task = PythonOperator(
-    #     task_id="format_to_parquet_task",
-    #     python_callable=format_to_parquet,
-    #     op_kwargs={
-    #         "src_file": f"{path_to_local_home}/{dataset_file}",
-    # },
-    # )
-
-    # TODO: Homework - research and try XCOM to communicate output values between 2 tasks/operators
     local_to_gcs_task = PythonOperator(
         task_id="local_to_gcs_task",
         python_callable=upload_to_gcs,
         op_kwargs={
             "bucket": BUCKET,
-            "object_name": f"raw/{dataset_file}",
+            "object_name": GCP_BUCKET_PATH,
             "local_file": f"{path_to_local_home}/{dataset_file}",
         },
     )
 
-    bigquery_external_table_task = BigQueryCreateExternalTableOperator(
-        task_id="bigquery_external_table_task",
-        table_resource={
-            "tableReference": {
-                "projectId": PROJECT_ID,
-                "datasetId": BIGQUERY_DATASET,
-                "tableId": "external_table",
-            },
-            "externalDataConfiguration": {
-                "sourceFormat": "PARQUET",
-                "sourceUris": [f"gs://{BUCKET}/raw/{dataset_file}"],
-            },
-        },
+    rm_task = BashOperator(
+        task_id="rm_task",
+        bash_command=f"rm {path_to_local_home}/{dataset_file}"
     )
 
-    download_dataset_task >> local_to_gcs_task >> bigquery_external_table_task
+    # bigquery_external_table_task = BigQueryCreateExternalTableOperator(
+    #     task_id="bigquery_external_table_task",
+    #     table_resource={
+    #         "tableReference": {
+    #             "projectId": PROJECT_ID,
+    #             "datasetId": BIGQUERY_DATASET,
+    #             "tableId": "external_table",
+    #         },
+    #         "externalDataConfiguration": {
+    #             "sourceFormat": "PARQUET",
+    #             "sourceUris": [f"gs://{BUCKET}/raw/{dataset_file}"],
+    #         },
+    #     },
+    # )
+
+    download_dataset_task >> local_to_gcs_task >> rm_task
+    # >> bigquery_external_table_task
